@@ -1,6 +1,7 @@
 import os
 import argparse
 import cv2
+import json
 import numpy as np
 import pandas as pd
 
@@ -43,6 +44,7 @@ def transform_to_floor_plan_view(video_path, bb_path, output_vid, output_dir="ou
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     result_path = os.path.join(output_dir, output_vid)
+    json_output_path = f'{result_path.split(".")[0]}.json'
 
     vs = cv2.VideoCapture(video_path)
 
@@ -70,6 +72,7 @@ def transform_to_floor_plan_view(video_path, bb_path, output_vid, output_dir="ou
 
     frame_id = 0
     points = []
+    positions = []
     global image
 
     while True:
@@ -93,20 +96,41 @@ def transform_to_floor_plan_view(video_path, bb_path, output_vid, output_dir="ou
             dst = np.float32([[0, H], [W, H], [W, 0], [0, 0]])
             perspective_transform = cv2.getPerspectiveTransform(src, dst)
 
+        boxes = []
+        track = []
         if frame_id in frame_ids:
             boxes = bb_df_grouped.get_group(frame_id).values[:, 2:6]
-        else:
-            boxes = []
+            track = (
+                bb_df_grouped.get_group(frame_id).iloc[:, 1].astype(np.int64).to_list()
+            )
 
         if frame_id != 0:
+            point_for_vis = []
             person_points = get_transformed_points(boxes, perspective_transform)
-            bird_image = bird_eye_view(frame, person_points, scale_w, scale_h)
+
+            for i, k in enumerate(track):
+                person_point = person_points[i]
+                point_for_vis.append([frame_id, k, *person_point])
+
+                coordinate = [
+                    int(person_point[0] * scale_w),
+                    int(person_point[1] * scale_h),
+                ]
+                pos = {"frame_id": frame_id, "track_id": k, "position": coordinate}
+                if frame_id % 6 == 0:
+                    positions.append(pos)
+
+            bird_image = bird_eye_view(frame, point_for_vis, scale_w, scale_h)
             bird_movie.write(bird_image)
 
         frame_id = frame_id + 1
 
     vs.release()
     cv2.destroyAllWindows()
+
+    with open(json_output_path, "w", encoding="utf8") as json_file:
+        json_data = {"video": video_path, "positions": positions}
+        json.dump(json_data, json_file, ensure_ascii=False)
 
 
 if __name__ == "__main__":

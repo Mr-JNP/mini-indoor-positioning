@@ -12,9 +12,21 @@ def bird_eye_view(frame, person_points, scale_w, scale_h):
     blank_image = np.zeros((int(h * scale_h), int(w * scale_w), 3), np.uint8)
     blank_image[:] = white
 
-    for i in person_points:
+    text_scale = max(1, w / 1600.0)
+    text_thickness = 2
+
+    for _, track_id, x, y in person_points:
         blank_image = cv2.circle(
-            blank_image, (int(i[0] * scale_w), int(i[1] * scale_h)), 5, green, 10
+            blank_image, (int(x * scale_w), int(y * scale_h)), 5, green, 10
+        )
+        blank_image = cv2.putText(
+            blank_image,
+            str(track_id),
+            (int(x * scale_w), int(y * scale_h) - 30),
+            cv2.FONT_HERSHEY_PLAIN,
+            text_scale,
+            (255, 0, 0),
+            thickness=text_thickness,
         )
 
     return blank_image
