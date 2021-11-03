@@ -42,14 +42,9 @@ def transform_to_floor_plan_view(video_path, bb_path, output_vid, output_dir="ou
     )
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        result_path = os.path.join(output_dir, output_vid)
-
-    global image
+    result_path = os.path.join(output_dir, output_vid)
 
     vs = cv2.VideoCapture(video_path)
-
-    (_, frame) = vs.read()
-    (H, W) = frame.shape[:2]
 
     # Get video height, width and fps
     height = int(vs.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -67,34 +62,51 @@ def transform_to_floor_plan_view(video_path, bb_path, output_vid, output_dir="ou
         (int(width * scale_w), int(height * scale_h)),
     )
 
-    while True:
-        image = frame
-        cv2.imshow("image", image)
-        cv2.waitKey(1)
-        if len(mouse_pts) == 8:
-            cv2.destroyWindow("image")
-            break
-    points = mouse_pts
-
-    vs.release()
-    cv2.destroyAllWindows()
-
-    src = np.float32(np.array(points[:4]))
-    dst = np.float32([[0, H], [W, H], [W, 0], [0, 0]])
-    perspective_transform = cv2.getPerspectiveTransform(src, dst)
-
     with open(bb_path, "rb") as f:
         bb = np.load(f, allow_pickle=True)
-
     bb_df = pd.DataFrame(bb[:, 0:6])
     bb_df_grouped = bb_df.groupby(0)
     frame_ids = bb_df_grouped.groups.keys()
 
-    for frame_id in frame_ids:
-        boxes = bb_df_grouped.get_group(frame_id).values[:, 2:6]
-        person_points = get_transformed_points(boxes, perspective_transform)
-        bird_image = bird_eye_view(frame, person_points, scale_w, scale_h)
-        bird_movie.write(bird_image)
+    frame_id = 0
+    points = []
+    global image
+
+    while True:
+        (grabbed, frame) = vs.read()
+
+        if not grabbed:
+            break
+
+        (H, W) = frame.shape[:2]
+
+        if frame_id == 0:
+            while True:
+                image = frame
+                cv2.imshow("image", image)
+                cv2.waitKey(1)
+                if len(mouse_pts) == 8:
+                    cv2.destroyWindow("image")
+                    break
+            points = mouse_pts
+            src = np.float32(np.array(points[:4]))
+            dst = np.float32([[0, H], [W, H], [W, 0], [0, 0]])
+            perspective_transform = cv2.getPerspectiveTransform(src, dst)
+
+        if frame_id in frame_ids:
+            boxes = bb_df_grouped.get_group(frame_id).values[:, 2:6]
+        else:
+            boxes = []
+
+        if frame_id != 0:
+            person_points = get_transformed_points(boxes, perspective_transform)
+            bird_image = bird_eye_view(frame, person_points, scale_w, scale_h)
+            bird_movie.write(bird_image)
+
+        frame_id = frame_id + 1
+
+    vs.release()
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
