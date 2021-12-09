@@ -96,6 +96,21 @@ def transform_to_floor_plan_view(video_path, bb_path, output_vid, output_dir="ou
             dst = np.float32([[0, H], [W, H], [W, 0], [0, 0]])
             perspective_transform = cv2.getPerspectiveTransform(src, dst)
 
+            # using next 3 points for horizontal and vertical unit length(in this case 100 cm)
+            pts = np.float32(np.array([points[4:7]]))
+            warped_pt = cv2.perspectiveTransform(pts, perspective_transform)[0]
+
+            distance_w = np.sqrt(
+                (warped_pt[0][0] - warped_pt[1][0]) ** 2
+                + (warped_pt[0][1] - warped_pt[1][1]) ** 2
+            )
+            distance_h = np.sqrt(
+                (warped_pt[0][0] - warped_pt[2][0]) ** 2
+                + (warped_pt[0][1] - warped_pt[2][1]) ** 2
+            )
+
+            cv2.imwrite(os.path.join(output_dir, "ref.png"), image)
+
         boxes = []
         track = []
         if frame_id in frame_ids:
@@ -120,8 +135,18 @@ def transform_to_floor_plan_view(video_path, bb_path, output_vid, output_dir="ou
                 if frame_id % 6 == 0:
                     positions.append(pos)
 
-            bird_image = bird_eye_view(frame, point_for_vis, scale_w, scale_h)
+            bird_image = bird_eye_view(
+                frame, point_for_vis, distance_w, distance_h, scale_w, scale_h
+            )
             bird_movie.write(bird_image)
+
+            if frame_id == 1:
+                inv_bird_image = cv2.warpPerspective(
+                    bird_image,
+                    np.linalg.inv(perspective_transform),
+                    (W, H),
+                )
+                cv2.imwrite(os.path.join(output_dir, "transformed.png"), inv_bird_image)
 
         frame_id = frame_id + 1
 
