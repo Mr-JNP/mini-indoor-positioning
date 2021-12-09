@@ -55,7 +55,7 @@ def transform_to_floor_plan_view(video_path, bb_path, output_vid, output_dir="ou
 
     # Set scale for birds eye view
     # Bird's eye view will only show ROI
-    scale_w, scale_h = get_scale(width, height)
+    scale_w, scale_h = 1, 1
     fourcc = cv2.VideoWriter_fourcc(*"XVID")
     bird_movie = cv2.VideoWriter(
         result_path,
